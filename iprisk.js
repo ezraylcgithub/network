@@ -4,7 +4,7 @@ const APIS = [
   "http://ip-api.com/json"
 ];
 
-function done(content) {
+function finish(content) {
   $done({
     title: "IP 风险检测",
     content,
@@ -13,59 +13,62 @@ function done(content) {
   });
 }
 
-function httpGet(url) {
-  return new Promise((resolve, reject) => {
-    $httpClient.get({ url, timeout: 6 }, (error, response, data) => {
-      if (error || !response || !data) {
-        reject("Request failed");
-        return;
-      }
-      try {
-        resolve(JSON.parse(data));
-      } catch (e) {
-        reject("Parse failed");
-      }
+function request(url) {
+  return new Promise((resolve) => {
+    $httpClient.get({ url }, (error, response, data) => {
+      resolve({
+        url,
+        error: error ? String(error) : "",
+        status: response ? response.status : 0,
+        data: data || ""
+      });
     });
   });
 }
 
-function normalize(data, source) {
-  if (source.includes("ipapi.co")) {
-    if (data.error) throw new Error(data.reason || "ipapi error");
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+}
+
+function normalize(url, json) {
+  if (url.includes("ipapi.co")) {
+    if (!json || json.error) return null;
     return {
-      ip: data.ip,
-      country: data.country_name,
-      countryCode: data.country_code,
-      city: data.city,
-      asn: data.asn,
-      org: data.org
+      ip: json.ip,
+      country: json.country_name,
+      city: json.city,
+      asn: json.asn,
+      org: json.org
     };
   }
 
-  if (source.includes("ip.sb")) {
+  if (url.includes("ip.sb")) {
+    if (!json) return null;
     return {
-      ip: data.ip,
-      country: data.country,
-      countryCode: data.country_code,
-      city: data.city,
-      asn: data.asn ? `AS${data.asn}` : "",
-      org: data.isp || data.organization
+      ip: json.ip,
+      country: json.country,
+      city: json.city,
+      asn: json.asn ? `AS${json.asn}` : "",
+      org: json.isp || json.organization
     };
   }
 
-  if (source.includes("ip-api.com")) {
-    if (data.status !== "success") throw new Error(data.message || "ip-api error");
+  if (url.includes("ip-api.com")) {
+    if (!json || json.status !== "success") return null;
     return {
-      ip: data.query,
-      country: data.country,
-      countryCode: data.countryCode,
-      city: data.city,
-      asn: data.as || "",
-      org: data.isp || data.org
+      ip: json.query,
+      country: json.country,
+      city: json.city,
+      asn: json.as || "",
+      org: json.isp || json.org
     };
   }
 
-  throw new Error("Unknown source");
+  return null;
 }
 
 function isHosting(org) {
@@ -90,46 +93,49 @@ function isResidential(org) {
 }
 
 function calcRisk(org) {
-  if (isResidential(org)) {
-    return { type: "住宅网络", level: "Low" };
-  }
-  if (isHosting(org)) {
-    return { type: "机房IP", level: "High" };
-  }
+  if (isResidential(org)) return { type: "住宅网络", level: "Low" };
+  if (isHosting(org)) return { type: "机房IP", level: "High" };
   return { type: "普通网络", level: "Medium" };
 }
 
 (async () => {
+  let debug = [];
   let info = null;
-  let lastError = "";
 
   for (const api of APIS) {
-    try {
-      const raw = await httpGet(api);
-      info = normalize(raw, api);
-      break;
-    } catch (e) {
-      lastError = String(e);
+    const res = await request(api);
+    debug.push(`[${api}] status=${res.status} error=${res.error || "none"}`);
+
+    if (!res.data) continue;
+
+    const json = parseJson(res.data);
+    if (!json) {
+      debug.push(`解析失败: ${api}`);
+      continue;
     }
+
+    const normalized = normalize(api, json);
+    if (!normalized) {
+      debug.push(`字段无效: ${api}`);
+      continue;
+    }
+
+    info = normalized;
+    break;
   }
 
   if (!info) {
-    done(`查询失败\n原因: ${lastError || "所有接口均不可用"}`);
+    finish("查询失败\n\n" + debug.join("\n"));
     return;
   }
 
-  const ip = info.ip || "Unknown";
-  const country = info.country || "Unknown";
-  const city = info.city || "Unknown";
-  const asn = info.asn || "Unknown";
-  const org = info.org || "Unknown";
-  const risk = calcRisk(org);
+  const risk = calcRisk(info.org || "");
 
-  done(
-    `IP: ${ip}\n` +
-    `地区: ${country} · ${city}\n` +
-    `ASN: ${asn}\n` +
-    `运营商: ${org}\n` +
+  finish(
+    `IP: ${info.ip || "Unknown"}\n` +
+    `地区: ${info.country || "Unknown"} · ${info.city || "Unknown"}\n` +
+    `ASN: ${info.asn || "Unknown"}\n` +
+    `运营商: ${info.org || "Unknown"}\n` +
     `类型: ${risk.type}\n` +
     `风险: ${risk.level}`
   );
