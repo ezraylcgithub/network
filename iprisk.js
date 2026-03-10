@@ -1,119 +1,136 @@
-/*
-Surge Panel Script: IP Risk
-查询当前出口 IP、ASN、运营商，并做简单风险判断
-*/
+const APIS = [
+  "https://ipapi.co/json/",
+  "https://api.ip.sb/geoip",
+  "http://ip-api.com/json"
+];
 
-const API = "https://ipapi.co/json/";
-
-function done(title, content) {
+function done(content) {
   $done({
-    title: title,
-    content: content
+    title: "IP 风险检测",
+    content,
+    icon: "exclamationmark.shield",
+    "icon-color": "#ff9f0a"
   });
 }
 
-function safe(v, d = "Unknown") {
-  if (!v) return d;
-  return String(v);
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    $httpClient.get({ url, timeout: 6 }, (error, response, data) => {
+      if (error || !response || !data) {
+        reject("Request failed");
+        return;
+      }
+      try {
+        resolve(JSON.parse(data));
+      } catch (e) {
+        reject("Parse failed");
+      }
+    });
+  });
+}
+
+function normalize(data, source) {
+  if (source.includes("ipapi.co")) {
+    if (data.error) throw new Error(data.reason || "ipapi error");
+    return {
+      ip: data.ip,
+      country: data.country_name,
+      countryCode: data.country_code,
+      city: data.city,
+      asn: data.asn,
+      org: data.org
+    };
+  }
+
+  if (source.includes("ip.sb")) {
+    return {
+      ip: data.ip,
+      country: data.country,
+      countryCode: data.country_code,
+      city: data.city,
+      asn: data.asn ? `AS${data.asn}` : "",
+      org: data.isp || data.organization
+    };
+  }
+
+  if (source.includes("ip-api.com")) {
+    if (data.status !== "success") throw new Error(data.message || "ip-api error");
+    return {
+      ip: data.query,
+      country: data.country,
+      countryCode: data.countryCode,
+      city: data.city,
+      asn: data.as || "",
+      org: data.isp || data.org
+    };
+  }
+
+  throw new Error("Unknown source");
 }
 
 function isHosting(org) {
   const s = (org || "").toLowerCase();
-
   const list = [
-    "amazon",
-    "aws",
-    "google",
-    "microsoft",
-    "azure",
-    "oracle",
-    "cloudflare",
-    "digitalocean",
-    "linode",
-    "vultr",
-    "akamai",
-    "ovh",
-    "hetzner",
-    "contabo",
-    "server",
-    "hosting",
-    "datacenter",
-    "data center"
+    "amazon", "aws", "google", "microsoft", "azure", "oracle",
+    "cloudflare", "digitalocean", "linode", "vultr", "akamai",
+    "ovh", "hetzner", "contabo", "server", "hosting",
+    "datacenter", "data center", "alibaba cloud", "tencent cloud"
   ];
-
   return list.some(k => s.includes(k));
 }
 
 function isResidential(org) {
   const s = (org || "").toLowerCase();
-
   const list = [
-    "telecom",
-    "unicom",
-    "mobile",
-    "comcast",
-    "verizon",
-    "att",
-    "spectrum",
-    "softbank",
-    "kddi",
-    "vodafone",
-    "orange",
-    "telefonica",
-    "bt",
-    "telstra",
-    "rogers",
-    "cox"
+    "telecom", "unicom", "mobile", "comcast", "verizon", "att",
+    "spectrum", "softbank", "kddi", "vodafone", "orange",
+    "telefonica", "bt", "telstra", "rogers", "cox"
   ];
-
   return list.some(k => s.includes(k));
 }
 
 function calcRisk(org) {
-
   if (isResidential(org)) {
     return { type: "住宅网络", level: "Low" };
   }
-
   if (isHosting(org)) {
     return { type: "机房IP", level: "High" };
   }
-
   return { type: "普通网络", level: "Medium" };
 }
 
-$httpClient.get(API, function(error, response, data) {
+(async () => {
+  let info = null;
+  let lastError = "";
 
-  if (error || !data) {
-    done("IP 风险检测", "查询失败");
+  for (const api of APIS) {
+    try {
+      const raw = await httpGet(api);
+      info = normalize(raw, api);
+      break;
+    } catch (e) {
+      lastError = String(e);
+    }
+  }
+
+  if (!info) {
+    done(`查询失败\n原因: ${lastError || "所有接口均不可用"}`);
     return;
   }
 
-  let info;
-
-  try {
-    info = JSON.parse(data);
-  } catch(e) {
-    done("IP 风险检测", "解析失败");
-    return;
-  }
-
-  const ip = safe(info.ip);
-  const country = safe(info.country_name);
-  const city = safe(info.city);
-  const asn = safe(info.asn);
-  const org = safe(info.org);
-
+  const ip = info.ip || "Unknown";
+  const country = info.country || "Unknown";
+  const city = info.city || "Unknown";
+  const asn = info.asn || "Unknown";
+  const org = info.org || "Unknown";
   const risk = calcRisk(org);
 
-  const result =
-`IP: ${ip}
-地区: ${country} · ${city}
-ASN: ${asn}
-运营商: ${org}
-类型: ${risk.type}
-风险: ${risk.level}`;
-
-  done("IP 风险检测", result);
-
-});
+  done(
+    `IP: ${ip}\n` +
+    `地区: ${country} · ${city}\n` +
+    `ASN: ${asn}\n` +
+    `运营商: ${org}\n` +
+    `类型: ${risk.type}\n` +
+    `风险: ${risk.level}`
+  );
+})();
