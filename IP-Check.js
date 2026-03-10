@@ -1,36 +1,49 @@
-/*
- * 由@congcong0806编写
- * 原脚本地址：https://github.com/congcong0806/surge-list/blob/master/Script/ipcheck.js
- * 由@Rabbit-Spec修改
- * 更新日期：2022.08.14
- * 版本：1.5
- */
+const url = "http://ip-api.com/json";
 
-let url = "http://ip-api.com/json"
+$httpClient.get(url, (error, response, data) => {
+  if (error || !data) {
+    $done({
+      title: "节点信息",
+      content: "查询失败",
+      icon: "globe.asia.australia.fill"
+    });
+    return;
+  }
 
-$httpClient.get(url, function(error, response, data){
-    let jsonData = JSON.parse(data)
-    let country = jsonData.country
-    let emoji = getFlagEmoji(jsonData.countryCode)
-    let city = jsonData.city
-    let isp = jsonData.isp
-    let ip = jsonData.query
-  body = {
+  let json;
+  try {
+    json = JSON.parse(data);
+  } catch (e) {
+    $done({
+      title: "节点信息",
+      content: "解析失败",
+      icon: "globe.asia.australia.fill"
+    });
+    return;
+  }
+
+  const country = json.country || "Unknown";
+  const countryCode = json.countryCode || "";
+  const city = json.city || "Unknown";
+  const isp = json.isp || "Unknown";
+  const ip = json.query || "Unknown";
+  const emoji = getFlagEmoji(countryCode);
+
+  $done({
     title: "节点信息",
     content: `IP信息：${ip}\n运营商：${isp}\n所在地：${emoji}${country} - ${city}`,
     icon: "globe.asia.australia.fill"
-  }
-  $done(body);
+  });
 });
 
 function getFlagEmoji(countryCode) {
-      if (countryCode.toUpperCase() == 'TW') {
-    countryCode = 'CN'
-  }
+  if (!countryCode) return "🏳️";
+  if (countryCode.toUpperCase() === "TW") countryCode = "CN";
+
   const codePoints = countryCode
     .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt())
-  return String.fromCodePoint(...codePoints)
+    .split("")
+    .map(char => 127397 + char.charCodeAt());
 
+  return String.fromCodePoint(...codePoints);
 }
