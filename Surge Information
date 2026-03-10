@@ -4,7 +4,7 @@
 [Panel]
 SurgePro_ReloadProfile = script-name=SurgePro_ReloadProfile,update-interval=60
 IP-Check = script-name=IP-Check,title="节点信息",content="点击刷新",style=info,update-interval=600
-IP-Risk = script-name=IP-Risk,title="IP 风险检测",content="点击刷新",style=info,update-interval=600
+IP-Risk = script-name=IP-Risk,title="IP 风险检测",content="点击刷新",style=info,update-interval=600,argument=icon=exclamationmark.shield&color=#ff9f0a
 stream-all = script-name=stream-all,title="流媒体解锁检测",content="点击刷新",style=info,update-interval=3600
 
 [Script]
