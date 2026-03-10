@@ -1,7 +1,8 @@
 const url = "http://ip-api.com/json";
 
 $httpClient.get(url, function(error, response, data) {
-  if (error || !response || !data) {
+
+  if (error || !data) {
     $done({
       title: "IP 风险检测",
       content: "请求失败"
@@ -83,4 +84,5 @@ $httpClient.get(url, function(error, response, data) {
       `类型: ${type}\n` +
       `风险: ${risk}`
   });
+
 });
