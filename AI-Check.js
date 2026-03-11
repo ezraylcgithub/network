@@ -1,28 +1,27 @@
-const GEO_API = "http://ip-api.com/json";
-const POLICY = "🤖 AI";
+const POLICY = "🤖 AI"
 
-const AI_FRIENDLY = ["US","JP","SG","HK","KR"];
+const GEO_API = "http://ip-api.com/json"
 
 const SERVICES = [
-  { name: "OpenAI", url: "https://chatgpt.com" },
-  { name: "Claude", url: "https://claude.ai" },
-  { name: "Gemini", url: "https://gemini.google.com" },
-  { name: "Perplexity", url: "https://www.perplexity.ai" },
-  { name: "Poe", url: "https://poe.com" },
-  { name: "Copilot", url: "https://copilot.microsoft.com" }
-];
+{ name:"OpenAI", url:"https://chatgpt.com"},
+{ name:"Claude", url:"https://claude.ai"},
+{ name:"Gemini", url:"https://gemini.google.com"},
+{ name:"Perplexity", url:"https://www.perplexity.ai"},
+{ name:"Poe", url:"https://poe.com"},
+{ name:"Copilot", url:"https://copilot.microsoft.com"}
+]
 
 function getJSON(url){
 return new Promise((resolve,reject)=>{
 $httpClient.get({url,policy:POLICY},(error,response,data)=>{
-if(error||!response||!data){reject("无法获取节点地区");return;}
-try{resolve(JSON.parse(data));}
+if(error||!response||!data){reject("无法获取节点地区");return}
+try{resolve(JSON.parse(data))}
 catch(e){reject("地区解析失败")}
 })
 })
 }
 
-function checkService(service){
+function check(service){
 return new Promise(resolve=>{
 $httpClient.get({
 url:service.url,
@@ -43,8 +42,7 @@ const body=data||""
 
 if(status>=200&&status<400){
 
-if(body.includes("Access denied")||
-body.includes("unsupported country")||
+if(body.includes("unsupported country")||
 body.includes("not available in your country")){
 resolve(`${service.name}: 地区限制`)
 return
@@ -65,12 +63,6 @@ resolve(`${service.name}: 受限`)
 })
 }
 
-function getLevel(n){
-if(n>=5)return"完全支持"
-if(n>=3)return"部分支持"
-return"受限"
-}
-
 (async()=>{
 
 try{
@@ -83,24 +75,16 @@ result.push(`检测分组: ${POLICY}`)
 result.push(`出口地区: ${region}`)
 result.push("")
 
-if(AI_FRIENDLY.includes(region)){
-result.push("地区类型: AI 友好地区")
-}else{
-result.push("地区类型: 普通地区")
-}
-
-result.push("")
-
 let success=0
 
 for(const s of SERVICES){
-const line=await checkService(s)
-if(line.includes("可访问"))success++
-result.push(line)
+const r=await check(s)
+if(r.includes("可访问"))success++
+result.push(r)
 }
 
 result.push("")
-result.push(`AI 等级: ${getLevel(success)}`)
+result.push(`AI 可用数量: ${success}/${SERVICES.length}`)
 
 $done({
 title:"AI 服务检测",
@@ -116,4 +100,4 @@ content:String(e)
 
 }
 
-})();
+})()
