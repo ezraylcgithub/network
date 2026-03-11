@@ -43,12 +43,17 @@ function check(service) {
           ) {
             resolve(`${service.name}: 地区限制`);
           } else {
-            resolve(`${service.name}: 可访问但可能受限`);
+            resolve(`${service.name}: 脚本访问受限`);
           }
           return;
         }
 
-        resolve(`${service.name}: 受限 (${status})`);
+        if (status === 429) {
+          resolve(`${service.name}: 可访问但可能受限`);
+          return;
+        }
+
+        resolve(`${service.name}: 可访问但可能受限 (${status})`);
       }
     );
   });
@@ -63,7 +68,14 @@ function check(service) {
 
   for (const s of SERVICES) {
     const line = await check(s);
-    if (line.includes("正常") || line.includes("可访问")) success++;
+
+    if (
+      line.includes("正常") ||
+      line.includes("可访问但可能受限")
+    ) {
+      success++;
+    }
+
     result.push(line);
   }
 
