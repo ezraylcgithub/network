@@ -84,6 +84,59 @@ function check(service) {
 
   $done({
     title: "AI 服务检测",
+    content: result.join("\n"),
+    icon: "brain.head.profile"
+  });
+})();        }
+
+        if (status === 403) {
+          if (
+            body.includes("unsupported country") ||
+            body.includes("not available in your country")
+          ) {
+            resolve(`${service.name}: 地区限制`);
+          } else {
+            resolve(`${service.name}: 脚本访问受限`);
+          }
+          return;
+        }
+
+        if (status === 429) {
+          resolve(`${service.name}: 可访问但可能受限`);
+          return;
+        }
+
+        resolve(`${service.name}: 可访问但可能受限 (${status})`);
+      }
+    );
+  });
+}
+
+(async () => {
+  const result = [];
+  result.push(`检测分组: ${POLICY}`);
+  result.push("");
+
+  let success = 0;
+
+  for (const s of SERVICES) {
+    const line = await check(s);
+
+    if (
+      line.includes("正常") ||
+      line.includes("可访问但可能受限")
+    ) {
+      success++;
+    }
+
+    result.push(line);
+  }
+
+  result.push("");
+  result.push(`AI 可用数量: ${success}/${SERVICES.length}`);
+
+  $done({
+    title: "AI 服务检测",
     content: result.join("\n")
   });
 })();
